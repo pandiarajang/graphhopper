@@ -7,8 +7,13 @@ import com.graphhopper.ResponsePath;
 import com.graphhopper.config.CHProfile;
 import com.graphhopper.config.LMProfile;
 import com.graphhopper.config.Profile;
+import com.graphhopper.routing.querygraph.QueryGraph;
+import com.graphhopper.routing.util.DirectedEdgeFilter;
+import com.graphhopper.routing.util.EdgeFilter;
 import com.graphhopper.routing.weighting.custom.CustomProfile;
+import com.graphhopper.storage.index.Snap;
 import com.graphhopper.util.*;
+import com.graphhopper.util.exceptions.PointNotFoundException;
 import com.graphhopper.util.shapes.GHPoint;
 
 import java.util.Arrays;
@@ -21,11 +26,13 @@ import static com.graphhopper.json.Statement.Op.MULTIPLY;
 public class RoutingExample {
     public static void main(String[] args) {
         String relDir = args.length == 1 ? args[0] : "";
-        GraphHopper hopper = createGraphHopperInstance(relDir + "core/files/andorra.osm.pbf");
-        routing(hopper);
-        speedModeVersusFlexibleMode(hopper);
-        headingAndAlternativeRoute(hopper);
-        customizableRouting(relDir + "core/files/andorra.osm.pbf");
+        relDir = "C:\\Users\\pandi\\Documents\\repository\\graphhopper\\";
+        //Download texas-latest.osm.pbf before executing the program from graphhopper public library. 
+        GraphHopper hopper = createGraphHopperInstance(relDir + "core\\files\\texas-latest.osm.pbf");
+        routing(hopper); 
+        //speedModeVersusFlexibleMode(hopper);
+       // headingAndAlternativeRoute(hopper);
+        //customizableRouting(relDir + "core/files/north-america-latest.osm.pbf");
 
         // release resources to properly shutdown or start a new instance
         hopper.close();
@@ -47,19 +54,53 @@ public class RoutingExample {
         hopper.importOrLoad();
         return hopper;
     }
-
+    
     public static void routing(GraphHopper hopper) {
         // simple configuration of the request object
-        GHRequest req = new GHRequest(42.508552, 1.532936, 42.507508, 1.528773).
+    	
+    	double[] src = new double[] {
+    			33.224815511733425,-97.42255264701932
+    	};
+    	
+    	double[] dst = new double[] {
+    			33.24912437959046, -96.52214779947299
+    	};
+    	
+    	
+    	Snap snap = hopper.getLocationIndex().findClosest(src[0], src[1], EdgeFilter.ALL_EDGES);
+    	
+    	if(snap.isValid()) {
+    		System.out.println("RoutingExample.routing()");
+    	}
+    	
+    	snap.getClosestNode();
+    	
+    	double lat1 = hopper.getGraphHopperStorage().getNodeAccess().getLat(snap.getClosestNode());
+    	double lon1 = hopper.getGraphHopperStorage().getNodeAccess().getLon(snap.getClosestNode());
+    	Snap snap2 =new Snap(lat1, lon1);
+    	
+    	GHPoint srcPoint = hopper.getLocationIndex().findClosest(src[0], src[1], EdgeFilter.ALL_EDGES).getSnappedPoint();
+    	GHPoint dstPoint = hopper.getLocationIndex().findClosest(dst[0], dst[1], EdgeFilter.ALL_EDGES).getSnappedPoint();
+    	
+    	Snap snap3 =new Snap(srcPoint.lat, srcPoint.lon);
+    	Snap snap4 =new Snap(33.225371, -97.42242);
+    	
+    	//GHRequest req = new GHRequest(srcPoint.lat,srcPoint.lon,dstPoint.lat,dstPoint.lon).
+    	GHRequest req = new GHRequest(src[0], src[1],dst[0], dst[1]).
                 // note that we have to specify which profile we are using even when there is only one like here
                         setProfile("car").
                 // define the language for the turn instructions
-                        setLocale(Locale.US);
+                        setLocale(Locale.US);                       ;
         GHResponse rsp = hopper.route(req);
 
         // handle errors
-        if (rsp.hasErrors())
-            throw new RuntimeException(rsp.getErrors().toString());
+        if (rsp.hasErrors()) {
+        	PointNotFoundException exc = (PointNotFoundException) rsp.getErrors().get(0);
+        	int idx = (int) exc.getDetails().get("point_index");
+        //	int idx = ((PointNotFoundException)rsp.getErrors().get(0)).
+        	throw new RuntimeException(rsp.getErrors().toString());
+        }
+            
 
         // use the best path, see the GHResponse class for more possibilities.
         ResponsePath path = rsp.getBest();
@@ -68,7 +109,7 @@ public class RoutingExample {
         PointList pointList = path.getPoints();
         double distance = path.getDistance();
         long timeInMs = path.getTime();
-
+        System.out.println("RoutingExample.routing() + "+distance);
         Translation tr = hopper.getTranslationMap().getWithFallBack(Locale.UK);
         InstructionList il = path.getInstructions();
         // iterate over all turn instructions
